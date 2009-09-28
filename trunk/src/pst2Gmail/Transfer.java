@@ -12,8 +12,10 @@ import javax.mail.internet.*;
 
 import com.pff.*;
 import java.io.*;
+import java.text.SimpleDateFormat;
 import javax.activation.*;
 import javax.mail.Flags.Flag;
+import javax.swing.text.DateFormatter;
 
 /**
  *
@@ -242,6 +244,33 @@ public class Transfer
     }
 
     /* -----------------------------
+     * Resumption of previous upload...
+     * ----------------------------- */
+
+    private File resumeFile = null;
+
+    public File[] getResumeFiles() {
+
+        FilenameFilter filter = new FilenameFilter() {
+            public boolean accept(File dir, String name) {
+                if (name.length() > 8 &&
+                    name.substring(0, 9).equals("pst2gmail") &&
+                    name.substring(name.length()-4).equals(".log"))
+                {
+                    return true;
+                }
+                return false;
+            }
+        };
+        File[] logFiles = new File("./").listFiles(filter);
+        return logFiles;
+    }
+
+    public void setResumeFile(File resumeFile) {
+        this.resumeFile = resumeFile;
+    }
+
+    /* -----------------------------
      *  Transfer stuff below
      * ----------------------------- */
 
@@ -255,7 +284,52 @@ public class Transfer
                 if (this.totalItems == 0) {
                     this.totalItems = getItemCount(this.sourceFolder);
                 }
-                PrintStream out = new PrintStream(new File("log.txt"));
+
+                // are we resuming from a previous log?
+                if (this.resumeFile != null) {
+                    // read in previous entries:
+                    try {
+                        BufferedReader in = new BufferedReader(new FileReader(this.resumeFile));
+                        StringBuffer skippingList = new StringBuffer();
+                        String line = in.readLine();
+                        if (line.length() > 20) {
+                            if (line.substring(0, 20).equals("Resuming, will skip:")) {
+                                // we skip what we have previously skipped.
+                                String restOfLine = line.substring(21);
+                                skippingList.append(",");
+                                skippingList.append(restOfLine.trim());
+                                String[] items = restOfLine.split(",");
+                                for (int x = 0; x < items.length; x++) {
+                                    this.previouslyUploadedItems.add(new Integer(items[x]));
+                                }
+                            }
+                        }
+                        while (line != null) {
+                            // do we match a resumption of completed line?
+                            if (line.length() > 20) {
+                                if (line.substring(0, 20).equals("Completed Upload of:")) {
+                                    // 
+                                    String restOfLine = line.substring(21);
+                                    skippingList.append(",");
+                                    skippingList.append(restOfLine.trim());
+                                    String[] items = restOfLine.split(",");
+                                    for (int x = 0; x < items.length; x++) {
+                                        this.previouslyUploadedItems.add(new Integer(items[x]));
+                                    }
+                                }
+                            }
+                            line = in.readLine();
+                        }
+                    } catch (Exception err) {
+                        // unable to read it in for some reason
+                        err.printStackTrace();
+                    }
+                }
+
+                // create a log file that we could possibly resume from in future...
+                SimpleDateFormat formatter = new SimpleDateFormat("yy-mm-dd_HH:mm");
+                String logFilename = "pst2gmail_"+formatter.format(new Date())+".log";
+                PrintStream out = new PrintStream(new File(logFilename));
                 transferFolder(this.sourceFolder, this.destinationFolder, out);
                 this.hasCompleted = true;
                 this.updateStatus("Completed");
@@ -326,6 +400,8 @@ public class Transfer
     private long[] transferSizes = new long[AVERAGE_TRANSFER_OVER];
 
     private boolean includeSubFolders = false;
+
+    private Vector<Integer> previouslyUploadedItems = new Vector<Integer>();
 
     public void includeSubFolders() {
         this.includeSubFolders = true;
