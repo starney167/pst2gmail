@@ -285,12 +285,13 @@ public class Transfer
                     this.totalItems = getItemCount(this.sourceFolder);
                 }
 
+                StringBuffer skippingList = new StringBuffer();
+
                 // are we resuming from a previous log?
                 if (this.resumeFile != null) {
                     // read in previous entries:
                     try {
                         BufferedReader in = new BufferedReader(new FileReader(this.resumeFile));
-                        StringBuffer skippingList = new StringBuffer();
                         String line = in.readLine();
                         if (line.length() > 20) {
                             if (line.substring(0, 20).equals("Resuming, will skip:")) {
@@ -300,7 +301,10 @@ public class Transfer
                                 skippingList.append(restOfLine.trim());
                                 String[] items = restOfLine.split(",");
                                 for (int x = 0; x < items.length; x++) {
-                                    this.previouslyUploadedItems.add(new Integer(items[x]));
+                                    try {
+                                        Integer temp =  new Integer(items[x]);
+                                        this.previouslyUploadedItems.add(temp);
+                                    } catch (Exception err) { }
                                 }
                             }
                         }
@@ -320,16 +324,21 @@ public class Transfer
                             }
                             line = in.readLine();
                         }
+
                     } catch (Exception err) {
                         // unable to read it in for some reason
                         err.printStackTrace();
                     }
                 }
+                this.updateStatus("Resuming, the following message numbers will be skipped: "+this.previouslyUploadedItems);
 
                 // create a log file that we could possibly resume from in future...
-                SimpleDateFormat formatter = new SimpleDateFormat("yy-mm-dd_HH:mm");
+                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-mm-dd_HH-mm");
                 String logFilename = "pst2gmail_"+formatter.format(new Date())+".log";
                 PrintStream out = new PrintStream(new File(logFilename));
+                if (this.previouslyUploadedItems.size() > 0) {
+                    out.print("Resuming, will skip: "+skippingList+"\n");
+                }
                 transferFolder(this.sourceFolder, this.destinationFolder, out);
                 this.hasCompleted = true;
                 this.updateStatus("Completed");
@@ -429,23 +438,29 @@ public class Transfer
                     // tell our log where we are up to...
                     if (obj instanceof PSTMessage) {
                         PSTMessage msg = (PSTMessage)obj;
-                        log.print("Creating "+msg.getDescriptorNode().descriptorIdentifier+"\n");
-                        updateStatus("Creating IMAP Version of msg #"+msg.getDescriptorNode().descriptorIdentifier+"  \""+msg.getSubject()+"\" <"+msg.getClientSubmitTime()+">");
-                        MimeMessage mimeVersion = convertMessage(msg);
-                        mimeChildren.add(mimeVersion);
-                        messageList += msg.getDescriptorNode().descriptorIdentifier+",";
+                        if (this.previouslyUploadedItems.contains(obj.getDescriptorNode().descriptorIdentifier)) {
+                            log.print("Skipping "+obj.getDescriptorNode().descriptorIdentifier+", it was previously uploaded\n");
+                        } else {
+                            log.print("Creating "+msg.getDescriptorNode().descriptorIdentifier+"\n");
+                            updateStatus("Creating IMAP Version of msg #"+msg.getDescriptorNode().descriptorIdentifier+"  \""+msg.getSubject()+"\" <"+msg.getClientSubmitTime()+">");
+                            MimeMessage mimeVersion = convertMessage(msg);
+                            mimeChildren.add(mimeVersion);
+                            messageList += msg.getDescriptorNode().descriptorIdentifier+",";
+                        }
                         transferSize += msg.getMessageSize();
                     } else {
                         log.print("Skipping "+obj.getDescriptorNode().descriptorIdentifier+", it doesn't appear to be a PSTMessage...\n");
                     }
                 }
                 // attempt to insert the bunch
-                log.print("Uploading messages: "+messageList.substring(0, messageList.length()-1)+"\n");
-                updateStatus("Uploading messages: "+messageList.substring(0, messageList.length()-1));
-                to.addMessages(mimeChildren.toArray(new MimeMessage[0]));
-                log.print("Completed Upload of: "+messageList.substring(0, messageList.length()-1)+"\n");
-                updateStatus("Uploading Complete");
-                updateNumberUploded(mimeChildren.size());
+                if (mimeChildren.size() > 0) {
+                    log.print("Uploading messages: "+messageList.substring(0, messageList.length()-1)+"\n");
+                    updateStatus("Uploading messages: "+messageList.substring(0, messageList.length()-1));
+                    to.addMessages(mimeChildren.toArray(new MimeMessage[0]));
+                    log.print("Completed Upload of: "+messageList.substring(0, messageList.length()-1)+"\n");
+                    updateStatus("Uploading Complete");
+                }
+                updateNumberUploded(children.size());
                 updateExpectedDuration(transferSize);
                 // get the next bunch of messages
                 children = from.getChildren(numberOfChildren);
