@@ -2,12 +2,15 @@
 <project-private xmlns="http://www.netbeans.org/ns/project-private/1">
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/1">
         <file>
-            <url>src/javaapplication1/Main.java</url>
-            <line>23</line>
-        </file>
-        <file>
             <url>src/pst2Gmail/Transfer.java</url>
             <line>579</line>
         </file>
+        <file>
+            <url>src/javaapplication1/Main.java</url>
+            <line>23</line>
+        </file>
     </editor-bookmarks>
+    <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/1">
+        <file>file:/C:/Users/toweruser/Documents/NetBeansProjects/pst2gmail/src/pst2Gmail/Main.java</file>
+    </open-files>
 </project-private>
