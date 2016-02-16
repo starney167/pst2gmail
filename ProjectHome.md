@@ -1,0 +1,1 @@
+pst2gmail builds on the work done in the java-libpst library (http://code.google.com/p/java-libpst/) to help migrate users from their Outlook email to the web based gmail services.
